@@ -6,12 +6,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useTheme } from "@/components/theme-provider";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import type { AnalyzeVideoRequest, ApiResponse } from "@shared/schema";
-import { Moon, Sun, Search, Download, Video, Music, Image, Loader2, AlertTriangle, Code, Book, Play, Bolt, Shield, ExternalLink } from "lucide-react";
+import type { AnalyzeVideoRequest, AnalyzePlaylistRequest, ApiResponse, PlaylistApiResponse } from "@shared/schema";
+import { Moon, Sun, Search, Download, Video, Music, Image, Loader2, AlertTriangle, Code, Book, Play, Bolt, Shield, ExternalLink, List } from "lucide-react";
 
 export default function Home() {
   const [url, setUrl] = useState("");
   const [videoData, setVideoData] = useState<ApiResponse["data"] | null>(null);
+  const [playlistData, setPlaylistData] = useState<PlaylistApiResponse["data"] | null>(null);
+  const [isPlaylist, setIsPlaylist] = useState(false);
   const { theme, setTheme } = useTheme();
   const { toast } = useToast();
 
@@ -23,6 +25,8 @@ export default function Home() {
     onSuccess: (data) => {
       if (data.success && data.data) {
         setVideoData(data.data);
+        setPlaylistData(null);
+        setIsPlaylist(false);
         toast({
           title: "Success",
           description: "Video analyzed successfully",
@@ -39,6 +43,37 @@ export default function Home() {
       toast({
         title: "Error",
         description: error.message || "Failed to analyze video",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const analyzePlaylistMutation = useMutation({
+    mutationFn: async (data: AnalyzePlaylistRequest): Promise<PlaylistApiResponse> => {
+      const response = await apiRequest("POST", "/api/analyze-playlist", data);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      if (data.success && data.data) {
+        setPlaylistData(data.data);
+        setVideoData(null);
+        setIsPlaylist(true);
+        toast({
+          title: "Success",
+          description: `Playlist analyzed successfully with ${data.data.videos.length} videos`,
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: data.error || "Failed to analyze playlist",
+          variant: "destructive",
+        });
+      }
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to analyze playlist",
         variant: "destructive",
       });
     },
@@ -64,14 +99,28 @@ export default function Home() {
       return;
     }
 
-    analyzeVideoMutation.mutate({
-      url: url.trim(),
-      include_thumbnails: true,
-    });
+    // Check if URL is a playlist
+    const playlistRegex = /[?&]list=/;
+    if (playlistRegex.test(url)) {
+      analyzePlaylistMutation.mutate({
+        url: url.trim(),
+        include_thumbnails: true,
+        max_videos: 10,
+      });
+    } else {
+      analyzeVideoMutation.mutate({
+        url: url.trim(),
+        include_thumbnails: true,
+      });
+    }
   };
 
   const handleSampleUrl = () => {
     setUrl("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+  };
+
+  const handleSamplePlaylistUrl = () => {
+    setUrl("https://www.youtube.com/playlist?list=PLRBp0Fe2GpglkzuspoGv-mu7B2ce9_0Fn");
   };
 
   const handleDownload = (downloadUrl: string, quality: string) => {
@@ -152,16 +201,16 @@ export default function Home() {
                   </div>
                   <Button
                     onClick={handleAnalyze}
-                    disabled={analyzeVideoMutation.isPending}
+                    disabled={analyzeVideoMutation.isPending || analyzePlaylistMutation.isPending}
                     className="min-w-[120px]"
                     data-testid="button-analyze"
                   >
-                    {analyzeVideoMutation.isPending ? (
+                    {(analyzeVideoMutation.isPending || analyzePlaylistMutation.isPending) ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     ) : (
                       <Search className="mr-2 h-4 w-4" />
                     )}
-                    {analyzeVideoMutation.isPending ? "Analyzing..." : "Analyze"}
+                    {(analyzeVideoMutation.isPending || analyzePlaylistMutation.isPending) ? "Analyzing..." : "Analyze"}
                   </Button>
                 </div>
                 
@@ -174,6 +223,14 @@ export default function Home() {
                   >
                     Sample Video URL
                   </button>
+                  <span className="text-sm text-muted-foreground">or</span>
+                  <button 
+                    onClick={handleSamplePlaylistUrl}
+                    className="text-sm text-youtube hover:underline"
+                    data-testid="button-sample-playlist-url"
+                  >
+                    Sample Playlist URL
+                  </button>
                 </div>
               </div>
             </CardContent>
@@ -181,13 +238,15 @@ export default function Home() {
         </section>
 
         {/* Loading State */}
-        {analyzeVideoMutation.isPending && (
+        {(analyzeVideoMutation.isPending || analyzePlaylistMutation.isPending) && (
           <section className="mb-8 fade-in">
             <Card>
               <CardContent className="p-6">
                 <div className="flex items-center justify-center space-x-3">
                   <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                  <span className="text-muted-foreground">Analyzing video...</span>
+                  <span className="text-muted-foreground">
+                    {analyzePlaylistMutation.isPending ? "Analyzing playlist..." : "Analyzing video..."}
+                  </span>
                 </div>
               </CardContent>
             </Card>
@@ -307,6 +366,123 @@ export default function Home() {
                 </CardContent>
               </Card>
             </section>
+          </>
+        )}
+
+        {/* Playlist Metadata */}
+        {playlistData && (
+          <>
+            <section className="mb-8 fade-in">
+              <Card className="overflow-hidden">
+                <div className="aspect-video bg-muted relative">
+                  <img 
+                    src={playlistData.thumbnail}
+                    alt="Playlist thumbnail" 
+                    className="w-full h-full object-cover"
+                    data-testid="img-playlist-thumbnail"
+                  />
+                  <div className="absolute bottom-2 right-2 bg-black bg-opacity-75 text-white px-2 py-1 rounded text-sm">
+                    <span data-testid="text-playlist-video-count">{playlistData.video_count} videos</span>
+                  </div>
+                </div>
+                <CardContent className="p-6">
+                  <div className="space-y-4">
+                    <div>
+                      <h2 className="text-2xl font-bold text-foreground mb-2" data-testid="text-playlist-title">{playlistData.title}</h2>
+                      <div className="flex items-center space-x-4 text-sm text-muted-foreground">
+                        <span className="flex items-center">
+                          <Video className="mr-1 h-4 w-4" />
+                          <span data-testid="text-playlist-author">{playlistData.author}</span>
+                        </span>
+                        <span className="flex items-center">
+                          <List className="mr-1 h-4 w-4" />
+                          <span data-testid="text-playlist-videos">{playlistData.video_count} videos</span>
+                        </span>
+                      </div>
+                    </div>
+                    
+                    {playlistData.description && (
+                      <div>
+                        <h3 className="font-semibold text-foreground mb-2">Description</h3>
+                        <p className="text-muted-foreground text-sm leading-relaxed" data-testid="text-playlist-description">
+                          {playlistData.description}
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                      <div className="flex items-center">
+                        <AlertTriangle className="h-5 w-5 text-blue-600 dark:text-blue-400 mr-2" />
+                        <div>
+                          <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                            Playlist Analysis Status
+                          </h4>
+                          <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
+                            {playlistData.videos.length > 0 
+                              ? `Successfully analyzed ${playlistData.videos.length} out of ${playlistData.video_count} videos. Some videos may have failed due to YouTube restrictions.`
+                              : `Playlist metadata extracted successfully, but individual video analysis failed due to YouTube restrictions. This is expected behavior when accessing videos without authentication.`
+                            }
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+
+            {/* Videos in Playlist */}
+            {playlistData.videos.length > 0 && (
+              <section className="mb-8 fade-in">
+                <Card>
+                  <CardContent className="p-6">
+                    <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center">
+                      <List className="mr-2 text-primary" />
+                      Videos in Playlist ({playlistData.videos.length})
+                    </h3>
+                    
+                    <div className="space-y-4">
+                      {playlistData.videos.map((video, index) => (
+                        <div key={video.video_id} className="bg-secondary rounded-lg p-4 hover:bg-accent transition-colors">
+                          <div className="flex items-start space-x-4">
+                            <div className="flex-shrink-0">
+                              <div className="w-20 h-12 bg-muted rounded overflow-hidden">
+                                <img 
+                                  src={video.thumbnail}
+                                  alt={`Video ${index + 1} thumbnail`}
+                                  className="w-full h-full object-cover"
+                                  data-testid={`img-playlist-video-thumbnail-${index}`}
+                                />
+                              </div>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-medium text-foreground text-sm leading-tight mb-1" data-testid={`text-playlist-video-title-${index}`}>
+                                {video.title}
+                              </h4>
+                              <div className="flex items-center space-x-2 text-xs text-muted-foreground">
+                                <span data-testid={`text-playlist-video-author-${index}`}>{video.author}</span>
+                                <span>•</span>
+                                <span data-testid={`text-playlist-video-duration-${index}`}>{video.duration}</span>
+                              </div>
+                            </div>
+                            <div className="flex-shrink-0">
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => setUrl(`https://www.youtube.com/watch?v=${video.video_id}`)}
+                                data-testid={`button-load-video-${index}`}
+                              >
+                                Analyze
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </section>
+            )}
           </>
         )}
 
