@@ -3,19 +3,186 @@ import { createServer, type Server } from "http";
 import cors from "cors";
 import ytdl from "@distube/ytdl-core";
 import ytpl from "@distube/ytpl";
-import { analyzeVideoSchema, analyzePlaylistSchema, type ApiResponse, type PlaylistApiResponse, type VideoMetadata } from "@shared/schema";
+import { analyzeVideoSchema, analyzePlaylistSchema, createApiKeySchema, type ApiResponse, type PlaylistApiResponse, type VideoMetadata, type CreateApiKeyRequest, type ApiKeyResponse, apiKeys, apiUsage } from "@shared/schema";
+import { authenticateApiKey, optionalAuthentication, authenticateAdmin, generateApiKey, logApiUsage, type AuthenticatedRequest, type AdminAuthenticatedRequest } from "./auth";
+import { db } from "./db";
+import { eq, desc, count, gte, and } from "drizzle-orm";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Enable CORS for web app integration
   app.use(cors({
     origin: process.env.NODE_ENV === "production" 
-      ? process.env.FRONTEND_URL || true
-      : true,
+      ? process.env.FRONTEND_URL 
+        ? [process.env.FRONTEND_URL]
+        : false // Deny all origins if FRONTEND_URL not set in production
+      : true, // Allow all origins in development
     credentials: true
   }));
 
+  // API Key Management Routes
+
+  // Create new API key
+  app.post("/api/keys", authenticateAdmin, async (req: AdminAuthenticatedRequest, res) => {
+    try {
+      const validatedData = createApiKeySchema.parse(req.body);
+      const { name, rate_limit_per_hour } = validatedData;
+
+      const { keyId, keySecret, keyHash } = generateApiKey();
+
+      const [newApiKey] = await db.insert(apiKeys).values({
+        key_id: keyId,
+        key_hash: keyHash,
+        name,
+        rate_limit_per_hour: rate_limit_per_hour || 100
+      }).returning();
+
+      res.status(201).json({
+        success: true,
+        data: {
+          id: newApiKey.id,
+          key_id: newApiKey.key_id,
+          name: newApiKey.name,
+          is_active: newApiKey.is_active,
+          rate_limit_per_hour: newApiKey.rate_limit_per_hour,
+          created_at: newApiKey.created_at,
+          api_key: keySecret // Only returned on creation
+        }
+      });
+    } catch (error) {
+      console.error("Error creating API key:", error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Failed to create API key"
+      });
+    }
+  });
+
+  // List API keys (without secrets)
+  app.get("/api/keys", authenticateAdmin, async (req: AdminAuthenticatedRequest, res) => {
+    try {
+      const keys = await db
+        .select({
+          id: apiKeys.id,
+          key_id: apiKeys.key_id,
+          name: apiKeys.name,
+          is_active: apiKeys.is_active,
+          rate_limit_per_hour: apiKeys.rate_limit_per_hour,
+          created_at: apiKeys.created_at
+        })
+        .from(apiKeys)
+        .orderBy(desc(apiKeys.created_at));
+
+      // Get usage stats for the last 24 hours for each key
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const keysWithUsage = await Promise.all(
+        keys.map(async (key) => {
+          const [usage] = await db
+            .select({ count: count() })
+            .from(apiUsage)
+            .where(and(
+              eq(apiUsage.api_key_id, key.id),
+              gte(apiUsage.request_timestamp, oneDayAgo)
+            ));
+
+          return {
+            ...key,
+            usage_today: usage.count
+          };
+        })
+      );
+
+      res.json({
+        success: true,
+        data: keysWithUsage
+      });
+    } catch (error) {
+      console.error("Error listing API keys:", error);
+      res.status(500).json({
+        success: false,
+        error: "Failed to list API keys"
+      });
+    }
+  });
+
+  // Delete API key
+  app.delete("/api/keys/:keyId", authenticateAdmin, async (req: AdminAuthenticatedRequest, res) => {
+    try {
+      const { keyId } = req.params;
+
+      const [deletedKey] = await db
+        .delete(apiKeys)
+        .where(eq(apiKeys.key_id, keyId))
+        .returning();
+
+      if (!deletedKey) {
+        return res.status(404).json({
+          success: false,
+          error: "API key not found"
+        });
+      }
+
+      res.json({
+        success: true,
+        message: "API key deleted successfully"
+      });
+    } catch (error) {
+      console.error("Error deleting API key:", error);
+      res.status(500).json({
+        success: false,
+        error: "Failed to delete API key"
+      });
+    }
+  });
+
+  // Update API key (activate/deactivate, change rate limit)
+  app.patch("/api/keys/:keyId", authenticateAdmin, async (req: AdminAuthenticatedRequest, res) => {
+    try {
+      const { keyId } = req.params;
+      const { is_active, rate_limit_per_hour } = req.body;
+
+      const updateData: any = {};
+      if (typeof is_active === "boolean") updateData.is_active = is_active;
+      if (typeof rate_limit_per_hour === "number" && rate_limit_per_hour > 0) {
+        updateData.rate_limit_per_hour = rate_limit_per_hour;
+      }
+      updateData.updated_at = new Date();
+
+      const [updatedKey] = await db
+        .update(apiKeys)
+        .set(updateData)
+        .where(eq(apiKeys.key_id, keyId))
+        .returning();
+
+      if (!updatedKey) {
+        return res.status(404).json({
+          success: false,
+          error: "API key not found"
+        });
+      }
+
+      res.json({
+        success: true,
+        data: {
+          id: updatedKey.id,
+          key_id: updatedKey.key_id,
+          name: updatedKey.name,
+          is_active: updatedKey.is_active,
+          rate_limit_per_hour: updatedKey.rate_limit_per_hour,
+          updated_at: updatedKey.updated_at
+        }
+      });
+    } catch (error) {
+      console.error("Error updating API key:", error);
+      res.status(500).json({
+        success: false,
+        error: "Failed to update API key"
+      });
+    }
+  });
+
   // Analyze YouTube video endpoint
-  app.post("/api/analyze", async (req, res) => {
+  app.post("/api/analyze", optionalAuthentication, async (req: AuthenticatedRequest, res) => {
+    const startTime = Date.now();
     try {
       const validatedData = analyzeVideoSchema.parse(req.body);
       const { url, include_thumbnails } = validatedData;
@@ -104,6 +271,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       };
 
+      // Log API usage if authenticated
+      if (req.apiKey) {
+        const processingTime = Date.now() - startTime;
+        await logApiUsage(req.apiKey.id, "/api/analyze", 200, processingTime);
+      }
+
       res.json(response);
 
     } catch (error) {
@@ -112,6 +285,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let errorMessage = "Failed to analyze video";
       if (error instanceof Error) {
         errorMessage = error.message;
+      }
+
+      // Log API usage for error if authenticated
+      if (req.apiKey) {
+        const processingTime = Date.now() - startTime;
+        await logApiUsage(req.apiKey.id, "/api/analyze", 500, processingTime, errorMessage);
       }
 
       const response: ApiResponse = {
@@ -124,7 +303,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Analyze YouTube playlist endpoint
-  app.post("/api/analyze-playlist", async (req, res) => {
+  app.post("/api/analyze-playlist", optionalAuthentication, async (req: AuthenticatedRequest, res) => {
+    const startTime = Date.now();
     try {
       const validatedData = analyzePlaylistSchema.parse(req.body);
       const { url, include_thumbnails, max_videos } = validatedData;
