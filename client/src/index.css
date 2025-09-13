@@ -1,0 +1,99 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: hsl(220, 14%, 96%);
+  --foreground: hsl(220, 8%, 15%);
+  --card: hsl(0, 0%, 100%);
+  --card-foreground: hsl(220, 8%, 15%);
+  --popover: hsl(0, 0%, 100%);
+  --popover-foreground: hsl(220, 8%, 15%);
+  --primary: hsl(220, 14%, 10%);
+  --primary-foreground: hsl(210, 20%, 98%);
+  --secondary: hsl(220, 14%, 95%);
+  --secondary-foreground: hsl(220, 8%, 15%);
+  --muted: hsl(220, 14%, 95%);
+  --muted-foreground: hsl(220, 8%, 45%);
+  --accent: hsl(220, 14%, 95%);
+  --accent-foreground: hsl(220, 8%, 15%);
+  --destructive: hsl(0, 84%, 60%);
+  --destructive-foreground: hsl(210, 20%, 98%);
+  --border: hsl(220, 13%, 91%);
+  --input: hsl(220, 13%, 91%);
+  --ring: hsl(220, 8%, 15%);
+  --youtube: hsl(0, 100%, 50%);
+  --radius: 0.5rem;
+  --font-sans: 'Inter', sans-serif;
+}
+
+.dark {
+  --background: hsl(220, 14%, 6%);
+  --foreground: hsl(210, 20%, 98%);
+  --card: hsl(220, 14%, 10%);
+  --card-foreground: hsl(210, 20%, 98%);
+  --popover: hsl(220, 14%, 10%);
+  --popover-foreground: hsl(210, 20%, 98%);
+  --primary: hsl(210, 20%, 98%);
+  --primary-foreground: hsl(220, 14%, 10%);
+  --secondary: hsl(220, 14%, 14%);
+  --secondary-foreground: hsl(210, 20%, 98%);
+  --muted: hsl(220, 14%, 14%);
+  --muted-foreground: hsl(220, 8%, 65%);
+  --accent: hsl(220, 14%, 14%);
+  --accent-foreground: hsl(210, 20%, 98%);
+  --border: hsl(220, 13%, 18%);
+  --input: hsl(220, 13%, 18%);
+  --ring: hsl(210, 20%, 98%);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: var(--font-sans);
+  }
+}
+
+@layer components {
+  .fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+  }
+  
+  .loading-dots::after {
+    content: '';
+    animation: dots 1.5s infinite;
+  }
+}
+
+@keyframes fadeIn {
+  from { 
+    opacity: 0; 
+    transform: translateY(10px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
+
+@keyframes dots {
+  0%, 20% { 
+    color: transparent; 
+    text-shadow: .25em 0 0 transparent, .5em 0 0 transparent; 
+  }
+  40% { 
+    color: hsl(var(--foreground)); 
+    text-shadow: .25em 0 0 transparent, .5em 0 0 transparent; 
+  }
+  60% { 
+    text-shadow: .25em 0 0 hsl(var(--foreground)), .5em 0 0 transparent; 
+  }
+  80%, 100% { 
+    text-shadow: .25em 0 0 hsl(var(--foreground)), .5em 0 0 hsl(var(--foreground)); 
+  }
+}
