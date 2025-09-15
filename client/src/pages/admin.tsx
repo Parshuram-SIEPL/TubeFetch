@@ -42,34 +42,47 @@ export default function Admin() {
     }
   }, []);
 
-  // admin login
-  const handleAdminLogin = async () => {
-    if (!adminToken.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter an admin token",
-        variant: "destructive",
-      });
-      return;
-    }
+ // Admin authentication functions
+const handleAdminLogin = async () => {
+  // token ko clean karna (trim aur Bearer remove karna)
+  let cleanedToken = adminToken.trim();
+  if (cleanedToken.toLowerCase().startsWith("bearer ")) {
+    cleanedToken = cleanedToken.slice(7).trim();
+  }
 
-    try {
-      const response = await apiRequest("GET", "/api/keys", undefined, adminToken);
-      await response.json();
+  if (!cleanedToken) {
+    toast({
+      title: "Error",
+      description: "Please enter an admin token",
+      variant: "destructive",
+    });
+    return;
+  }
 
-      localStorage.setItem("adminToken", adminToken);
-      setIsAuthenticated(true);
-      toast({ title: "Success", description: "Admin authentication successful" });
-    } catch {
-      toast({
-        title: "Authentication Failed",
-        description: "Invalid admin token",
-        variant: "destructive",
-      });
-      setAdminToken("");
-      setIsAuthenticated(false);
-    }
-  };
+  try {
+    // Test admin token by making a simple request
+    const response = await apiRequest("GET", "/api/keys", undefined, cleanedToken);
+    await response.json();
+
+    // Store token and mark as authenticated
+    localStorage.setItem("adminToken", cleanedToken);
+    setAdminToken(cleanedToken);
+    setIsAuthenticated(true);
+    toast({
+      title: "Success",
+      description: "Admin authentication successful",
+    });
+  } catch (error) {
+    toast({
+      title: "Authentication Failed",
+      description: "Invalid admin token. Please check your credentials.",
+      variant: "destructive",
+    });
+    setAdminToken("");
+    setIsAuthenticated(false);
+  }
+};
+
 
   const handleAdminLogout = () => {
     localStorage.removeItem("adminToken");
