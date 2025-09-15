@@ -1,18 +1,14 @@
 {
   "version": 2,
   "functions": {
-    "server/index.ts": {
+    "api/index.js": {
       "runtime": "@vercel/node@20.11.0"
     }
   },
   "routes": [
     {
-      "src": "/api/(.*)",
-      "dest": "/server/index.ts"
-    },
-    {
       "src": "/(.*)",
-      "dest": "/client/dist/$1"
+      "dest": "/api/index.js"
     }
   ],
   "env": {
