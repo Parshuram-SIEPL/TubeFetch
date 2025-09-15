@@ -1,4 +1,5 @@
 // server/routes.ts
+import { requireAdmin } from './auth';
 import express from 'express';
 import { db } from './db';
 import { apiKeys, apiUsage } from '../shared/schema';
