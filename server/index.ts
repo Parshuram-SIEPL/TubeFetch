@@ -14,7 +14,7 @@ const __dirname = path.dirname(__filename);
 dotenv.config();
 
 // Import your routes
-import apiRoutes from './routes'; 
+import apiRoutes from './routes';
 
 const app = express();
 
@@ -24,7 +24,8 @@ app.use(express.json());
 app.use(morgan('dev'));
 
 // -------------------- Mount API routes -------------------- //
-app.use('/api', apiRoutes);
+// ⚠️ here remove '/api' because routes.ts already has /api/...
+app.use(apiRoutes);
 
 // -------------------- Serve React frontend -------------------- //
 // Serve static files from /public (Vite build output)
