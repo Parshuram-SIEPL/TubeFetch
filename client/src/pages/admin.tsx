@@ -33,7 +33,7 @@ export default function Admin() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Check for stored admin token on component mount
+  // check for stored token
   useEffect(() => {
     const storedToken = localStorage.getItem("adminToken");
     if (storedToken) {
@@ -42,7 +42,7 @@ export default function Admin() {
     }
   }, []);
 
-  // Admin authentication functions
+  // admin login
   const handleAdminLogin = async () => {
     if (!adminToken.trim()) {
       toast({
@@ -54,21 +54,16 @@ export default function Admin() {
     }
 
     try {
-      // Test admin token by making a simple request
       const response = await apiRequest("GET", "/api/keys", undefined, adminToken);
       await response.json();
-      
-      // Store token and mark as authenticated
+
       localStorage.setItem("adminToken", adminToken);
       setIsAuthenticated(true);
-      toast({
-        title: "Success",
-        description: "Admin authentication successful",
-      });
-    } catch (error) {
+      toast({ title: "Success", description: "Admin authentication successful" });
+    } catch {
       toast({
         title: "Authentication Failed",
-        description: "Invalid admin token. Please check your credentials.",
+        description: "Invalid admin token",
         variant: "destructive",
       });
       setAdminToken("");
@@ -81,13 +76,10 @@ export default function Admin() {
     setAdminToken("");
     setIsAuthenticated(false);
     queryClient.clear();
-    toast({
-      title: "Logged Out",
-      description: "Admin session ended",
-    });
+    toast({ title: "Logged Out", description: "Admin session ended" });
   };
 
-  // Fetch API keys (only when authenticated)
+  // fetch API keys
   const { data: apiKeys, isLoading } = useQuery({
     queryKey: ["/api/keys"],
     enabled: isAuthenticated,
@@ -95,10 +87,10 @@ export default function Admin() {
       const response = await apiRequest("GET", "/api/keys", undefined, adminToken);
       const result = await response.json();
       return result.data as ApiKey[];
-    }
+    },
   });
 
-  // Create API key mutation
+  // create API key
   const createKeyMutation = useMutation({
     mutationFn: async (data: { name: string; rate_limit_per_hour: number }) => {
       const response = await apiRequest("POST", "/api/keys", data, adminToken);
@@ -111,10 +103,9 @@ export default function Admin() {
         setNewKeyRateLimit(100);
         toast({
           title: "Success",
-          description: "API key created successfully. Make sure to copy it now!",
+          description: "API key created successfully. Copy it now!",
         });
-        // Show the secret for the newly created key
-        setShowSecrets(prev => new Set([...Array.from(prev), data.data.key_id]));
+        setShowSecrets(prev => new Set([...prev, data.data.key_id]));
       } else {
         toast({
           title: "Error",
@@ -132,7 +123,7 @@ export default function Admin() {
     },
   });
 
-  // Delete API key mutation
+  // delete API key
   const deleteKeyMutation = useMutation({
     mutationFn: async (keyId: string) => {
       const response = await apiRequest("DELETE", `/api/keys/${keyId}`, undefined, adminToken);
@@ -140,10 +131,7 @@ export default function Admin() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/keys"] });
-      toast({
-        title: "Success",
-        description: "API key deleted successfully",
-      });
+      toast({ title: "Success", description: "API key deleted successfully" });
     },
     onError: () => {
       toast({
@@ -163,7 +151,6 @@ export default function Admin() {
       });
       return;
     }
-
     createKeyMutation.mutate({
       name: newKeyName.trim(),
       rate_limit_per_hour: newKeyRateLimit,
@@ -172,13 +159,9 @@ export default function Admin() {
 
   const toggleSecretVisibility = (keyId: string) => {
     setShowSecrets(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(keyId)) {
-        newSet.delete(keyId);
-      } else {
-        newSet.add(keyId);
-      }
-      return newSet;
+      const n = new Set(prev);
+      n.has(keyId) ? n.delete(keyId) : n.add(keyId);
+      return n;
     });
   };
 
@@ -186,12 +169,9 @@ export default function Admin() {
     try {
       await navigator.clipboard.writeText(text);
       setCopiedKey(keyId);
-      toast({
-        title: "Copied",
-        description: "API key copied to clipboard",
-      });
+      toast({ title: "Copied", description: "API key copied to clipboard" });
       setTimeout(() => setCopiedKey(null), 2000);
-    } catch (err) {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to copy to clipboard",
@@ -202,11 +182,10 @@ export default function Admin() {
 
   const getSecretDisplay = (keyId: string, apiKey?: string) => {
     if (!apiKey) return "••••••••••••••••••••••••••••••••";
-    if (showSecrets.has(keyId)) return apiKey;
-    return "••••••••••••••••••••••••••••••••";
+    return showSecrets.has(keyId) ? apiKey : "••••••••••••••••••••••••••••••••";
   };
 
-  // Show login form if not authenticated
+  // login page
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -216,12 +195,12 @@ export default function Admin() {
               <Lock className="mr-2 h-5 w-5" />
               Admin Authentication
             </CardTitle>
-            <p className="text-muted-foreground">Enter admin token to access API key management</p>
+            <p className="text-muted-foreground">Enter admin token</p>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div>
-                <label htmlFor="adminToken" className="block text-sm font-medium text-foreground mb-2">
+                <label htmlFor="adminToken" className="block text-sm font-medium mb-2">
                   Admin Token
                 </label>
                 <Input
@@ -230,21 +209,11 @@ export default function Admin() {
                   placeholder="Enter admin token"
                   value={adminToken}
                   onChange={(e) => setAdminToken(e.target.value)}
-                  data-testid="input-admin-token"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      handleAdminLogin();
-                    }
-                  }}
+                  onKeyDown={(e) => e.key === "Enter" && handleAdminLogin()}
                 />
               </div>
-              <Button
-                onClick={handleAdminLogin}
-                className="w-full"
-                data-testid="button-admin-login"
-              >
-                <Lock className="mr-2 h-4 w-4" />
-                Authenticate
+              <Button onClick={handleAdminLogin} className="w-full">
+                <Lock className="mr-2 h-4 w-4" /> Authenticate
               </Button>
             </div>
           </CardContent>
@@ -253,181 +222,114 @@ export default function Admin() {
     );
   }
 
+  // admin dashboard
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-6xl mx-auto px-4 py-8">
         <div className="mb-8 flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold text-foreground mb-2">API Key Management</h1>
-            <p className="text-muted-foreground">Manage your YouTube Downloader API keys and monitor usage</p>
+            <h1 className="text-3xl font-bold">API Key Management</h1>
+            <p className="text-muted-foreground">Manage your API keys and usage</p>
           </div>
-          <Button 
-            onClick={handleAdminLogout}
-            variant="outline"
-            data-testid="button-admin-logout"
-          >
-            <LogOut className="mr-2 h-4 w-4" />
-            Logout
+          <Button onClick={handleAdminLogout} variant="outline">
+            <LogOut className="mr-2 h-4 w-4" /> Logout
           </Button>
         </div>
 
-        {/* Create New API Key */}
+        {/* Create new key */}
         <Card className="mb-8">
           <CardHeader>
             <CardTitle className="flex items-center">
-              <Plus className="mr-2 h-5 w-5" />
-              Create New API Key
+              <Plus className="mr-2 h-5 w-5" /> Create New API Key
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="keyName" className="block text-sm font-medium text-foreground mb-2">
-                    Key Name
-                  </label>
+                  <label className="block text-sm font-medium mb-2">Key Name</label>
                   <Input
-                    id="keyName"
                     type="text"
-                    placeholder="e.g., Production API, Development Key"
+                    placeholder="e.g Production API"
                     value={newKeyName}
                     onChange={(e) => setNewKeyName(e.target.value)}
-                    data-testid="input-api-key-name"
                   />
                 </div>
                 <div>
-                  <label htmlFor="rateLimit" className="block text-sm font-medium text-foreground mb-2">
-                    Rate Limit (requests/hour)
-                  </label>
+                  <label className="block text-sm font-medium mb-2">Rate Limit (requests/hour)</label>
                   <Input
-                    id="rateLimit"
                     type="number"
                     min="1"
                     max="10000"
                     value={newKeyRateLimit}
                     onChange={(e) => setNewKeyRateLimit(parseInt(e.target.value) || 100)}
-                    data-testid="input-rate-limit"
                   />
                 </div>
               </div>
-              <Button
-                onClick={handleCreateKey}
-                disabled={createKeyMutation.isPending}
-                data-testid="button-create-api-key"
-              >
+              <Button onClick={handleCreateKey} disabled={createKeyMutation.isPending}>
                 {createKeyMutation.isPending ? "Creating..." : "Create API Key"}
               </Button>
             </div>
           </CardContent>
         </Card>
 
-        {/* API Keys List */}
+        {/* List API Keys */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
-              <Key className="mr-2 h-5 w-5" />
-              Your API Keys
+              <Key className="mr-2 h-5 w-5" /> Your API Keys
             </CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="text-center py-8">
-                <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto"></div>
-                <p className="text-muted-foreground mt-2">Loading API keys...</p>
-              </div>
+              <div className="text-center py-8">Loading API keys...</div>
             ) : !apiKeys || apiKeys.length === 0 ? (
-              <div className="text-center py-8">
-                <Key className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">No API keys found. Create your first one above.</p>
-              </div>
+              <div className="text-center py-8">No API keys found</div>
             ) : (
               <div className="space-y-4">
                 {apiKeys.map((key) => {
                   const isNewKey = createKeyMutation.data?.data?.key_id === key.key_id;
                   const apiKeySecret = isNewKey ? createKeyMutation.data?.data?.api_key : undefined;
-                  
+
                   return (
-                    <div
-                      key={key.id}
-                      className="border border-border rounded-lg p-4 bg-card"
-                      data-testid={`api-key-${key.key_id}`}
-                    >
-                      <div className="flex items-start justify-between">
+                    <div key={key.id} className="border rounded-lg p-4 bg-card">
+                      <div className="flex justify-between">
                         <div className="flex-1">
                           <div className="flex items-center space-x-3 mb-2">
-                            <h3 className="font-medium text-foreground" data-testid={`text-key-name-${key.key_id}`}>
-                              {key.name}
-                            </h3>
-                            <span className={`px-2 py-1 text-xs rounded-full ${
-                              key.is_active 
-                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" 
-                                : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-                            }`}>
+                            <h3 className="font-medium">{key.name}</h3>
+                            <span className={`px-2 py-1 text-xs rounded-full ${key.is_active ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
                               {key.is_active ? "Active" : "Inactive"}
                             </span>
                           </div>
-                          
+
                           <div className="space-y-2 text-sm text-muted-foreground">
-                            <div className="flex items-center space-x-4">
+                            <div className="flex space-x-4">
                               <span>Rate Limit: {key.rate_limit_per_hour}/hour</span>
                               <span>Usage Today: {key.usage_today}</span>
                               <span>Created: {format(new Date(key.created_at), "MMM d, yyyy")}</span>
                             </div>
-                            
-                            {/* API Key Display */}
+
                             <div className="flex items-center space-x-2 bg-secondary p-2 rounded">
-                              <code className="flex-1 text-xs font-mono" data-testid={`text-api-key-${key.key_id}`}>
+                              <code className="flex-1 text-xs font-mono">
                                 {getSecretDisplay(key.key_id, apiKeySecret)}
                               </code>
-                              <div className="flex items-center space-x-1">
-                                {apiKeySecret && (
-                                  <>
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() => toggleSecretVisibility(key.key_id)}
-                                      data-testid={`button-toggle-secret-${key.key_id}`}
-                                    >
-                                      {showSecrets.has(key.key_id) ? (
-                                        <EyeOff className="h-4 w-4" />
-                                      ) : (
-                                        <Eye className="h-4 w-4" />
-                                      )}
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() => copyToClipboard(apiKeySecret, key.key_id)}
-                                      data-testid={`button-copy-key-${key.key_id}`}
-                                    >
-                                      <Copy className={`h-4 w-4 ${copiedKey === key.key_id ? "text-green-600" : ""}`} />
-                                    </Button>
-                                  </>
-                                )}
-                              </div>
+                              {apiKeySecret && (
+                                <>
+                                  <Button size="sm" variant="ghost" onClick={() => toggleSecretVisibility(key.key_id)}>
+                                    {showSecrets.has(key.key_id) ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                  </Button>
+                                  <Button size="sm" variant="ghost" onClick={() => copyToClipboard(apiKeySecret, key.key_id)}>
+                                    <Copy className={`h-4 w-4 ${copiedKey === key.key_id ? "text-green-600" : ""}`} />
+                                  </Button>
+                                </>
+                              )}
                             </div>
-                            
-                            {isNewKey && (
-                              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded p-2">
-                                <p className="text-yellow-800 dark:text-yellow-200 text-xs">
-                                  ⚠️ This is your only chance to copy this API key. It won't be shown again.
-                                </p>
-                              </div>
-                            )}
+                            {isNewKey && <p className="text-xs text-yellow-600">⚠️ Copy this key now, it won’t show again</p>}
                           </div>
                         </div>
-                        
-                        <div className="flex items-center space-x-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => deleteKeyMutation.mutate(key.key_id)}
-                            disabled={deleteKeyMutation.isPending}
-                            data-testid={`button-delete-key-${key.key_id}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                        <Button size="sm" variant="outline" onClick={() => deleteKeyMutation.mutate(key.key_id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
                   );
@@ -437,26 +339,22 @@ export default function Admin() {
           </CardContent>
         </Card>
 
-        {/* Usage Instructions */}
+        {/* Instructions */}
         <Card className="mt-8">
           <CardHeader>
             <CardTitle className="flex items-center">
-              <Settings className="mr-2 h-5 w-5" />
-              How to Use Your API Key
+              <Settings className="mr-2 h-5 w-5" /> How to Use Your API Key
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4 text-sm">
               <div>
-                <h4 className="font-medium text-foreground mb-2">Authentication</h4>
-                <p className="text-muted-foreground mb-2">Include your API key in the request headers:</p>
-                <code className="block bg-secondary p-3 rounded text-xs">
-                  X-API-Key: your_api_key_here
-                </code>
+                <h4 className="font-medium mb-2">Authentication</h4>
+                <p className="text-muted-foreground mb-2">Include your API key in headers:</p>
+                <code className="block bg-secondary p-3 rounded text-xs">X-API-Key: your_api_key_here</code>
               </div>
-              
               <div>
-                <h4 className="font-medium text-foreground mb-2">Example Usage</h4>
+                <h4 className="font-medium mb-2">Example Usage</h4>
                 <code className="block bg-secondary p-3 rounded text-xs whitespace-pre-wrap">
 {`curl -X POST https://your-domain.com/api/analyze \\
   -H "Content-Type: application/json" \\
@@ -464,12 +362,10 @@ export default function Admin() {
   -d '{"url": "https://www.youtube.com/watch?v=VIDEO_ID"}'`}
                 </code>
               </div>
-              
               <div>
-                <h4 className="font-medium text-foreground mb-2">Rate Limits</h4>
+                <h4 className="font-medium mb-2">Rate Limits</h4>
                 <p className="text-muted-foreground">
-                  Each API key has its own rate limit. Exceeding the limit will result in a 429 status code. 
-                  The API also supports public access without authentication, but authenticated requests get higher priority.
+                  Each API key has its own rate limit. Exceeding the limit returns 429.
                 </p>
               </div>
             </div>
