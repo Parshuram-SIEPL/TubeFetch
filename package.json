@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "tsx": "^4.19.1",
+    "morgan": "^1.10.0",
     "@distube/ytdl-core": "^4.16.12",
     "@distube/ytpl": "^1.2.3",
     "@hookform/resolvers": "^3.10.0",
