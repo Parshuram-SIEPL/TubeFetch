@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: tube-fetch-backend
+    env: node
+    plan: free
+    buildCommand: npm install && npm run build || true
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
