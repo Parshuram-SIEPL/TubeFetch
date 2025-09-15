@@ -4,21 +4,26 @@ import cors from 'cors';
 import morgan from 'morgan';
 import path from 'path';
 import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';   // ✅ needed for __dirname in ESM
+
+// ✅ Recreate __dirname and __filename for ESM
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Load env variables
 dotenv.config();
 
 // Import your routes
-//import apiRoutes from './routes/index'; // adjust path if your routes folder is named differently
-import apiRoutes from './routes';
+import apiRoutes from './routes'; 
+
 const app = express();
 
-// Middlewares
+// -------------------- Middlewares -------------------- //
 app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
 
-// Mount API routes (all /api/… endpoints)
+// -------------------- Mount API routes -------------------- //
 app.use('/api', apiRoutes);
 
 // -------------------- Serve React frontend -------------------- //
@@ -32,7 +37,7 @@ app.get('*', (req, res) => {
 });
 // -------------------- End frontend serve -------------------- //
 
-// Port for Render or local
+// -------------------- Port -------------------- //
 const PORT = process.env.PORT || 10000;
 
 app.listen(PORT, () => {
