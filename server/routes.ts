@@ -1,15 +1,13 @@
 // server/routes.ts
-import { requireAdmin } from './auth';
-// server/routes.ts
 import express from 'express';
 import { db } from './db';
 import { apiKeys, apiUsage } from '../shared/schema';
-import { requireAdmin } from './auth'; // ⬅️ add this
+import { requireAdmin } from './auth';
 
 const router = express.Router();
 
 // Protected GET all API keys
-router.get('/api/keys', requireAdmin, async (req, res) => {
+router.get('/keys', requireAdmin, async (req, res) => {
   try {
     const keys = await db.select().from(apiKeys);
     res.json({ success: true, keys });
@@ -20,7 +18,7 @@ router.get('/api/keys', requireAdmin, async (req, res) => {
 });
 
 // Protected POST new API key
-router.post('/api/keys', requireAdmin, async (req, res) => {
+router.post('/keys', requireAdmin, async (req, res) => {
   try {
     const newKey = req.body; // adjust to your schema
     await db.insert(apiKeys).values(newKey);
@@ -31,8 +29,8 @@ router.post('/api/keys', requireAdmin, async (req, res) => {
   }
 });
 
-// Unprotected (example) usage endpoint
-router.get('/api/usage', async (req, res) => {
+// Unprotected usage endpoint
+router.get('/usage', async (req, res) => {
   try {
     const usage = await db.select().from(apiUsage);
     res.json({ success: true, usage });
@@ -43,4 +41,3 @@ router.get('/api/usage', async (req, res) => {
 });
 
 export default router;
-
