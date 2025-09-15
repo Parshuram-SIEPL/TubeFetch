@@ -9,8 +9,8 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // Import your routes
-import apiRoutes from './routes/index'; // adjust path if your routes folder is named differently
-
+//import apiRoutes from './routes/index'; // adjust path if your routes folder is named differently
+import apiRoutes from './routes';
 const app = express();
 
 // Middlewares
