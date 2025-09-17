@@ -6,28 +6,22 @@ import path from 'path';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';   // ✅ needed for __dirname in ESM
 
-// ✅ Recreate __dirname and __filename for ESM
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load env variables
 dotenv.config();
 
-// Import your routes
 import apiRoutes from './routes';
 
 const app = express();
 
-// -------------------- Middlewares -------------------- //
 app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
 
-// -------------------- Mount API routes -------------------- //
-// ⚠️ here remove '/api' because routes.ts already has /api/...
-app.use(apiRoutes);
+// Mount routes at /api
+app.use('/api', apiRoutes);
 
-// -------------------- Serve React frontend -------------------- //
 // Serve static files from /public (Vite build output)
 const publicPath = path.join(__dirname, 'public');
 app.use(express.static(publicPath));
@@ -36,11 +30,8 @@ app.use(express.static(publicPath));
 app.get('*', (req, res) => {
   res.sendFile(path.join(publicPath, 'index.html'));
 });
-// -------------------- End frontend serve -------------------- //
 
-// -------------------- Port -------------------- //
 const PORT = process.env.PORT || 10000;
-
 app.listen(PORT, () => {
   console.log(`[express] serving on port ${PORT}`);
 });
